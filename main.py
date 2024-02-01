@@ -6,11 +6,23 @@ from tkinter import Label, Entry
 import os
 import util
 from twilio.rest import Client
+
+
 class App:
     def __init__(self):
         self.main_window = tk.Tk()
-        self.main_window.geometry("900x300")
+        self.center_window(self.main_window, 900, 300)
         self.main_window.title("Navigation System")
+        
+    def center_window(self, window, width, height):
+        #center the window
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+
+        x_coordinate = (screen_width - width) // 2
+        y_coordinate = (screen_height - height) // 2
+#------------------------------------------------------
+        window.geometry(f"{width}x{height}+{x_coordinate}+{y_coordinate}")
 
         self.login_button_main_window = util.get_button(self.main_window, 'Login ', 'navy blue', self.login)
         self.login_button_main_window.place(x=550, y=45)
@@ -56,24 +68,38 @@ class App:
     def login(self):
         if self.login_attempts >= self.max_login_attempts:
             util.msg_box('Access Blocked', 'Too many login attempts. Please try again later.')
-            self.sms()
             return
 
         unknown_img_path = './.tmp.jpg'
         cv2.imwrite(unknown_img_path, self.most_recent_capture_arr)
-
-        output = str(subprocess.check_output(['face_recognition', self.db_dir, unknown_img_path]))
-        name = output.split(',')[1][:-5]
-
-        if name.strip() in ('no_persons_found', 'unknown_person'):
-            self.login_attempts += 1
-            util.msg_box('Login Failed',
-                         'Please try again. Attempt {} of {}.'.format(self.login_attempts, self.max_login_attempts))
-        else:
-            self.login_attempts = 0  # Reset the login attempts on a successful login
-            util.msg_box('Starting Engine', 'Welcome, {}'.format(name))
+        
+        try:
+            output = str(subprocess.check_output(['face_recognition', self.db_dir, unknown_img_path]))
+            
+            if 'face_recognition.api' in output:
+                util.msg_box('Error', 'Face recognition API error. Please try again.')
+            elif 'no_persons_found' in output:
+                self.login_attempts += 1
+                util.msg_box('Login Failed',
+                             'No face detected. Please try again. Attempt {} of {}.'.format(self.login_attempts, self.max_login_attempts))
+            elif 'unknown_person' in output:
+                self.login_attempts += 1
+                util.msg_box('Login Failed',
+                             'Unknown person. Please try again. Attempt {} of {}.'.format(self.login_attempts, self.max_login_attempts))
+                #self.sms()
+                #beeper sound
+            else:
+                self.login_attempts = 0  # Reset the login attempts on a successful login
+                name = output.split(',')[1][:-5]
+                util.msg_box('Starting Engine', 'Welcome, {}'.format(name))
+                #car ignition relay 
+                #drowsiness detection
+                
+        except subprocess.CalledProcessError as e:
+            util.msg_box('Error', 'Error during face recognition. Please try again.')
 
         os.remove(unknown_img_path)
+
 
     def admin(self):
         self.admin_access_main_window = tk.Toplevel(self.main_window)
